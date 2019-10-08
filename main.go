@@ -13,15 +13,17 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/radovskyb/watcher"
 )
 
-var decryptDir string = "data/"
-var encryptDir string = "inside/"
+var decryptDir string = "/data"
+var encryptDir string = "/inside"
 
-func encryptFile(key []byte, oldPath string, newPath string, filename string) {
-	outFilename := newPath + strings.TrimPrefix(filename, oldPath)
+func encryptFile(key []byte, path string) {
+	outFilename := switchFolder(path, decryptDir, encryptDir)
 
-	plaintext, err := ioutil.ReadFile(oldPath + filename)
+	plaintext, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -73,10 +75,10 @@ func encryptFile(key []byte, oldPath string, newPath string, filename string) {
 	}
 }
 
-func decryptFile(key []byte, oldPath string, newPath string, filename string) {
-	outFilename := newPath + strings.TrimPrefix(filename, oldPath)
+func decryptFile(key []byte, path string) {
+	outFilename := switchFolder(path, encryptDir, decryptDir)
 
-	ciphertext, err := ioutil.ReadFile(oldPath + filename)
+	ciphertext, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -119,29 +121,6 @@ func decryptFile(key []byte, oldPath string, newPath string, filename string) {
 	}
 }
 
-//Function reads through the selected base directory (encrypted or no) and replicates it in the other directory
-func searchDirs(searchDir string, createDir string, enc bool, key []byte) {
-	files, err := ioutil.ReadDir(searchDir)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, f := range files {
-		if f.IsDir() == true {
-			newSearchDir := searchDir + f.Name() + "/"
-			newCreateDir := createDir + f.Name() + "/"
-			os.MkdirAll(newCreateDir, f.Mode())
-			searchDirs(newSearchDir, newCreateDir, enc, key)
-		} else {
-			if enc {
-				encryptFile(key, searchDir, createDir, f.Name())
-			} else {
-				decryptFile(key, searchDir, createDir, f.Name())
-			}
-		}
-	}
-}
-
 //Requires linux environment variable "SA_PASSWORD" be set
 func getPass() string {
 	password := os.Getenv("SA_PASSWORD")
@@ -159,31 +138,123 @@ func makeKey(pass string) []byte {
 	return key
 }
 
-//Compares the modification times of both main directories and runs the searchDirs function if applicable
-func compareDirs(key []byte) {
-	for {
-		infoDecryptDir, err := os.Stat(decryptDir)
-		if err != nil {
-			log.Fatal(err)
-		}
-		infoEncryptDir, err := os.Stat(encryptDir)
-		if err != nil {
-			log.Fatal(err)
-		}
-		decryptDirTime := infoDecryptDir.ModTime()
-		encryptDirTime := infoEncryptDir.ModTime()
+//Helper function to change the base directory path from one to the other
+func switchFolder(wholePath string, startDir string, newDir string) string {
+	newPath := newDir + strings.TrimPrefix(wholePath, startDir)
+	return newPath
+}
 
-		diff := decryptDirTime.Sub(encryptDirTime)
+func watchDirs(key []byte) {
+	//Define/configure watcher
+	watch := watcher.New()
 
-		if diff == (time.Duration(0) * time.Second) {
-			fmt.Println("Doing nothing this run...")
-			break
-		} else if diff < (time.Duration(0) * time.Second) {
-			searchDirs(encryptDir, decryptDir, false, key)
-		} else if diff > (time.Duration(0) * time.Second) {
-			searchDirs(decryptDir, encryptDir, true, key)
+	//Selects the directories to recursively search for updates through
+	if err := watch.AddRecursive(decryptDir); err != nil {
+		log.Panicln(err)
+	}
+	if err := watch.AddRecursive(encryptDir); err != nil {
+		log.Panicln(err)
+	}
+
+	//Main logic for handling events
+	go func() {
+		for {
+			select {
+			case event := <-watch.Event:
+				fmt.Println(event) //Shows event details as they occur
+
+				//'If' runs when event occurs in decryptDir. 'Else' runs when event occurs in encryptDir
+				if strings.Contains(event.Path, decryptDir) {
+					//Removes the 'inside/' directory watch path while running events in 'data/'
+					watch.RemoveRecursive(encryptDir)
+
+					eventHandler(true, key, event)
+
+					//Re-adds the 'inside/' directory watch path once done
+					if err := watch.AddRecursive(encryptDir); err != nil {
+						log.Panicln(err)
+					}
+				} else {
+					//Removes the 'data/' directory watch path while running events in 'inside/'
+					watch.RemoveRecursive(encryptDir)
+
+					eventHandler(false, key, event)
+
+					//Re-adds the 'data/' directory watch path once done
+					if err := watch.AddRecursive(decryptDir); err != nil {
+						log.Panicln(err)
+					}
+				}
+			case err := <-watch.Error:
+				log.Panicln(err)
+			case <-watch.Closed:
+				return
+			}
 		}
-		time.Sleep(10 * time.Second)
+	}()
+	//Starts the watcher
+	if err := watch.Start(time.Millisecond * 100); err != nil {
+		log.Panicln(err)
+	}
+}
+
+func eventHandler(enc bool, key []byte, event watcher.Event) {
+	if enc {
+		//'If' runs when event occurs in decryptDir.
+		if event.IsDir() == true && event.Path != decryptDir {
+			dirName := switchFolder(event.Path, decryptDir, encryptDir)
+			os.MkdirAll(dirName, event.Mode())
+		} else if event.IsDir() == true {
+
+		} else {
+			if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
+				writeFile(true, key, &event)
+			} else if event.Op.String() == "REMOVE" {
+				deleteFile(true, &event)
+			}
+		}
+
+	} else {
+		//'Else' runs when event occurs in encryptDir
+		if event.IsDir() == true && event.Path != encryptDir {
+			dirName := switchFolder(event.Path, encryptDir, decryptDir)
+			os.MkdirAll(dirName, event.Mode())
+		} else if event.IsDir() == true {
+
+		} else {
+			if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
+				writeFile(false, key, &event)
+			} else if event.Op.String() == "REMOVE" {
+				deleteFile(false, &event)
+			}
+		}
+	}
+}
+
+//Runs when eventHandler reaches a REMOVE event
+func deleteFile(enc bool, event *watcher.Event) {
+	var toDel string
+	if enc {
+		toDel = switchFolder(event.Path, decryptDir, encryptDir)
+	} else {
+		toDel = switchFolder(event.Path, encryptDir, decryptDir)
+	}
+	if _, err := os.Stat(toDel); err == nil {
+		err := os.Remove(toDel)
+		if err != nil {
+			log.Panicln(err)
+		}
+	} else {
+		fmt.Println("File did not exist to delete.")
+	}
+}
+
+//Runs when eventHandler reaches a Create or Write event
+func writeFile(enc bool, key []byte, event *watcher.Event) {
+	if enc {
+		encryptFile(key, event.Path)
+	} else {
+		decryptFile(key, event.Path)
 	}
 }
 
@@ -191,5 +262,5 @@ func main() {
 	password := getPass()
 	key := makeKey(password)
 
-	compareDirs(key)
+	watchDirs(key)
 }
