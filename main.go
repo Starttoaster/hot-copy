@@ -19,6 +19,8 @@ import (
 
 var decryptDir string = "/data"
 var encryptDir string = "/inside"
+var watch *watcher.Watcher = watcher.New()
+var jobQueue []watcher.Event
 
 func encryptFile(key []byte, path string) {
 	outFilename := switchFolder(path, decryptDir, encryptDir)
@@ -144,10 +146,7 @@ func switchFolder(wholePath string, startDir string, newDir string) string {
 	return newPath
 }
 
-func watchDirs(key []byte) {
-	//Define/configure watcher
-	watch := watcher.New()
-
+func watchDirs() {
 	//Selects the directories to recursively search for updates through
 	if err := watch.AddRecursive(decryptDir); err != nil {
 		log.Panicln(err)
@@ -162,29 +161,7 @@ func watchDirs(key []byte) {
 			select {
 			case event := <-watch.Event:
 				fmt.Println(event) //Shows event details as they occur
-
-				//'If' runs when event occurs in decryptDir. 'Else' runs when event occurs in encryptDir
-				if strings.Contains(event.Path, decryptDir) {
-					//Removes the 'inside/' directory watch path while running events in 'data/'
-					watch.RemoveRecursive(encryptDir)
-
-					eventHandler(true, key, event)
-
-					//Re-adds the 'inside/' directory watch path once done
-					if err := watch.AddRecursive(encryptDir); err != nil {
-						log.Panicln(err)
-					}
-				} else {
-					//Removes the 'data/' directory watch path while running events in 'inside/'
-					watch.RemoveRecursive(encryptDir)
-
-					eventHandler(false, key, event)
-
-					//Re-adds the 'data/' directory watch path once done
-					if err := watch.AddRecursive(decryptDir); err != nil {
-						log.Panicln(err)
-					}
-				}
+				jobQueue = append(jobQueue, event) //Adds event to job queue
 			case err := <-watch.Error:
 				log.Panicln(err)
 			case <-watch.Closed:
@@ -196,6 +173,46 @@ func watchDirs(key []byte) {
 	if err := watch.Start(time.Millisecond * 100); err != nil {
 		log.Panicln(err)
 	}
+}
+
+func getJob(key []byte) {
+	for {
+		if len(jobQueue) > 0 {
+			oldestEvent := jobQueue[0]
+
+			//'If' runs when event occurs in decryptDir. 'Else' runs when event occurs in encryptDir
+			if strings.Contains(oldestEvent.Path, decryptDir) {
+				//Removes the 'inside/' directory watch path while running events in 'data/'
+				watch.RemoveRecursive(encryptDir)
+		
+				eventHandler(true, key, oldestEvent)
+			
+				//Re-adds the 'inside/' directory watch path once done
+				if err := watch.AddRecursive(encryptDir); err != nil {
+					log.Panicln(err)
+				}
+			} else {
+				//Removes the 'data/' directory watch path while running events in 'inside/'
+				watch.RemoveRecursive(encryptDir)
+		
+				eventHandler(false, key, oldestEvent)
+		
+				//Re-adds the 'data/' directory watch path once done
+				if err := watch.AddRecursive(decryptDir); err != nil {
+					log.Panicln(err)
+				}
+			}
+		
+			removeOldEvent() //Once done with oldestEvent, removes it from the job queue, and shifts all elements to the left by one
+		} else {
+			time.Sleep(1 * time.Second)
+		}
+	}
+}
+
+//Removes the first (oldest) element of the slice
+func removeOldEvent() {
+	jobQueue = jobQueue[1:]
 }
 
 func eventHandler(enc bool, key []byte, event watcher.Event) {
@@ -259,8 +276,10 @@ func writeFile(enc bool, key []byte, event *watcher.Event) {
 }
 
 func main() {
+	//Set up user defined key
 	password := getPass()
 	key := makeKey(password)
 
-	watchDirs(key)
+	go getJob(key)
+	watchDirs()
 }
