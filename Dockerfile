@@ -14,8 +14,11 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-w -s" -o sync-assi
 FROM alpine
 LABEL maintainer="Brandon Butler bmbawb@gmail.com"
 
-RUN mkdir -p /data
-RUN mkdir -p /inside
-COPY --from=builder /go/src/sync-assist/sync-assist /cloudflare
+RUN mkdir -p /data && mkdir -p /inside
+
+VOLUME /inside
+VOLUME /data
+
+COPY --from=builder /go/src/sync-assist/sync-assist /sync-assist
 
 ENTRYPOINT ["/sync-assist"]

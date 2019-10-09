@@ -12,8 +12,13 @@ This repo takes a password from you, hashes it using SHA256 to make a 32 byte ha
 
 ## TODO
 
-A lot. This isn't done, by a long shot. For starters:
+A lot. This isn't done, by a long shot. Feel free to contribute or send a pull request if you have an idea. For starters:
 
+ - Dial in watcher events using the eventHandler function and its child functions
  - Add go unit tests
- - Write a better README.md file
- - Add Dockerfile to run in Docker
+ - Set up CI
+
+ ## Quick Start
+
+ - Build the image: `docker build -t sync-assist .`
+ - Run the image: `docker container run  -d --restart unless-stopped -v ~/go/src/sync-assist/data:/data -v ~/go/src/sync-assist/inside:/inside -e SA_PASSWORD="newpassword" --name sync-assist sync-assist`
