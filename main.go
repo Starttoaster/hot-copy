@@ -11,16 +11,17 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/radovskyb/watcher"
 )
 
-var decryptDir string = "/data"
-var encryptDir string = "/inside"
 var watch *watcher.Watcher = watcher.New()
 var jobQueue []watcher.Event
+var decryptDir string = "/data"
+var encryptDir string = "/inside"
 
 func encryptFile(key []byte, path string) {
 	outFilename := switchFolder(path, decryptDir, encryptDir)
@@ -32,7 +33,7 @@ func encryptFile(key []byte, path string) {
 
 	of, err := os.Create(outFilename)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err) 
 	}
 	defer of.Close()
 
@@ -146,6 +147,7 @@ func switchFolder(wholePath string, startDir string, newDir string) string {
 	return newPath
 }
 
+//Starts the directory watcher
 func watchDirs() {
 	//Selects the directories to recursively search for updates through
 	if err := watch.AddRecursive(decryptDir); err != nil {
@@ -160,7 +162,7 @@ func watchDirs() {
 		for {
 			select {
 			case event := <-watch.Event:
-				fmt.Println(event) //Shows event details as they occur
+				//fmt.Println(event) //Shows event details as they occur
 				jobQueue = append(jobQueue, event) //Adds event to job queue
 			case err := <-watch.Error:
 				log.Panicln(err)
@@ -175,18 +177,19 @@ func watchDirs() {
 	}
 }
 
+//Grabs a job from the queue slice, splits it between which directory it comes from, actions it, and then deletes it
 func getJob(key []byte) {
 	for {
 		if len(jobQueue) > 0 {
 			oldestEvent := jobQueue[0]
-
+			fmt.Println(oldestEvent) //Shows event details as they occur
 			//'If' runs when event occurs in decryptDir. 'Else' runs when event occurs in encryptDir
 			if strings.Contains(oldestEvent.Path, decryptDir) {
 				//Removes the 'inside/' directory watch path while running events in 'data/'
 				watch.RemoveRecursive(encryptDir)
 		
 				eventHandler(true, key, oldestEvent)
-			
+
 				//Re-adds the 'inside/' directory watch path once done
 				if err := watch.AddRecursive(encryptDir); err != nil {
 					log.Panicln(err)
@@ -202,8 +205,8 @@ func getJob(key []byte) {
 					log.Panicln(err)
 				}
 			}
-		
-			removeOldEvent() //Once done with oldestEvent, removes it from the job queue, and shifts all elements to the left by one
+
+			removeOldEvent()
 		} else {
 			time.Sleep(1 * time.Second)
 		}
@@ -212,38 +215,25 @@ func getJob(key []byte) {
 
 //Removes the first (oldest) element of the slice
 func removeOldEvent() {
-	jobQueue = jobQueue[1:]
+	jobQueue = append(jobQueue[:0], jobQueue[1:]...)
 }
 
+//Gets called by getJob with relevant details
 func eventHandler(enc bool, key []byte, event watcher.Event) {
+	//'If' runs when event occurs in decryptDir.
 	if enc {
-		//'If' runs when event occurs in decryptDir.
-		if event.IsDir() == true && event.Path != decryptDir {
-			dirName := switchFolder(event.Path, decryptDir, encryptDir)
-			os.MkdirAll(dirName, event.Mode())
-		} else if event.IsDir() == true {
-
-		} else {
-			if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
-				writeFile(true, key, &event)
-			} else if event.Op.String() == "REMOVE" {
-				deleteFile(true, &event)
-			}
+		if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
+			writeFile(true, key, &event)
+		} else if event.Op.String() == "REMOVE" {
+			deleteFile(true, &event)
 		}
 
+	//'Else' runs when event occurs in encryptDir
 	} else {
-		//'Else' runs when event occurs in encryptDir
-		if event.IsDir() == true && event.Path != encryptDir {
-			dirName := switchFolder(event.Path, encryptDir, decryptDir)
-			os.MkdirAll(dirName, event.Mode())
-		} else if event.IsDir() == true {
-
-		} else {
-			if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
-				writeFile(false, key, &event)
-			} else if event.Op.String() == "REMOVE" {
-				deleteFile(false, &event)
-			}
+		if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
+			writeFile(false, key, &event)
+		} else if event.Op.String() == "REMOVE" {
+			deleteFile(false, &event)
 		}
 	}
 }
@@ -257,21 +247,53 @@ func deleteFile(enc bool, event *watcher.Event) {
 		toDel = switchFolder(event.Path, encryptDir, decryptDir)
 	}
 	if _, err := os.Stat(toDel); err == nil {
-		err := os.Remove(toDel)
-		if err != nil {
-			log.Panicln(err)
+		if event.IsDir() {
+			d, err := os.Open(toDel)
+			if err != nil {
+				log.Panicln(err)
+			}
+			defer d.Close()
+			names, err := d.Readdirnames(-1)
+			if err != nil {
+				log.Panicln(err)
+			}
+			for _, name := range names {
+				err = os.RemoveAll(filepath.Join(toDel, name))
+				if err != nil {
+					log.Panicln(err)
+				}
+			}
+		} else {
+			err := os.Remove(toDel)
+			if err != nil {
+				log.Panicln(err)
+			}
 		}
-	} else {
-		fmt.Println("File did not exist to delete.")
 	}
 }
 
 //Runs when eventHandler reaches a Create or Write event
 func writeFile(enc bool, key []byte, event *watcher.Event) {
 	if enc {
-		encryptFile(key, event.Path)
+		if event.IsDir() == true && event.Path != decryptDir {
+			dirName := switchFolder(event.Path, decryptDir, encryptDir)
+			os.MkdirAll(dirName, event.Mode())
+		} else if event.IsDir() == true {
+		} else {
+			checkDir := strings.TrimSuffix(switchFolder(event.Path, decryptDir, encryptDir), event.Name())
+			os.MkdirAll(checkDir, event.Mode())
+			encryptFile(key, event.Path)
+		}
 	} else {
-		decryptFile(key, event.Path)
+		if event.IsDir() == true && event.Path != encryptDir {
+			dirName := switchFolder(event.Path, encryptDir, decryptDir)
+			os.MkdirAll(dirName, event.Mode())
+		} else if event.IsDir() == true {
+		} else {
+			checkDir := strings.TrimSuffix(switchFolder(event.Path, encryptDir, decryptDir), event.Name())
+			os.MkdirAll(checkDir, event.Mode())
+			decryptFile(key, event.Path)
+		}
 	}
 }
 

@@ -10,15 +10,16 @@ The problem this repo is meant to solve is the ability to treat some nodes as un
 
 This repo takes a password from you, hashes it using SHA256 to make a 32 byte hash. That hash is used to encrypt all of your files using the AES-256 encryption standard. This is meant to run in a Docker container with two volumes. The `data/` volume is meant to face you. You store and access your unencrypted documents here. The `inside/` volume stores replicas of all of your files in encrypted form. That `inside/` volume can then be mounted to your Syncthing instance as its own data volume, so that it syncronizes only the encrypted files to the Syncthing relay server.
 
-## TODO
-
-A lot. This isn't done, by a long shot. Feel free to contribute or send a pull request if you have an idea. For starters:
-
- - Dial in watcher events using the eventHandler function and its child functions
- - Add go unit tests
- - Set up CI
-
  ## Quick Start
 
  - Build the image: `docker build -t sync-assist .`
  - Run the image: `docker container run  -d --restart unless-stopped -v ~/go/src/sync-assist/data:/data -v ~/go/src/sync-assist/inside:/inside -e SA_PASSWORD="newpassword" --name sync-assist sync-assist`
+
+## TODO
+
+This is in early development. Feel free to contribute or send a pull request if you have an idea. For starters:
+
+ - Dial in watcher events using the eventHandler function and its child functions
+ - Further testing dealing with large numbers of files and directories
+ - Add go unit tests
+ - Set up CI
