@@ -37,13 +37,13 @@ func encryptFile(key []byte, path string) {
 	}
 	defer of.Close()
 
-	// Write the original plaintext size into the output file first, encoded in a 8-byte integer.
+	//Write the original plaintext size into the output file first, encoded in an 8-byte integer.
 	origSize := uint64(len(plaintext))
 	if err = binary.Write(of, binary.LittleEndian, origSize); err != nil {
 		log.Fatal(err)
 	}
 
-	// Pad plaintext to a multiple of BlockSize with random padding.
+	//Pad plaintext to a multiple of BlockSize with random padding.
 	if len(plaintext)%aes.BlockSize != 0 {
 		bytesToPad := aes.BlockSize - (len(plaintext) % aes.BlockSize)
 		padding := make([]byte, bytesToPad)
@@ -53,7 +53,7 @@ func encryptFile(key []byte, path string) {
 		plaintext = append(plaintext, padding...)
 	}
 
-	// Generate random IV and write it to the output file.
+	//Generate random IV and write it to the output file.
 	iv := make([]byte, aes.BlockSize)
 	if _, err := rand.Read(iv); err != nil {
 		log.Fatal(err)
@@ -62,10 +62,10 @@ func encryptFile(key []byte, path string) {
 		log.Fatal(err)
 	}
 
-	// Ciphertext has the same size as the padded plaintext.
+	//Ciphertext has the same size as the padded plaintext.
 	ciphertext := make([]byte, len(plaintext))
 
-	// Use AES implementation of the cipher.Block interface to encrypt the whole file in CBC mode.
+	//Use AES implementation of the cipher.Block interface to encrypt the whole file in CBC mode.
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		log.Fatal(err)
@@ -92,9 +92,9 @@ func decryptFile(key []byte, path string) {
 	}
 	defer of.Close()
 
-	// cipertext has the original plaintext size in the first 8 bytes, then IV
-	// in the next 16 bytes, then the actual ciphertext in the rest of the buffer.
-	// Read the original plaintext size, and the IV.
+	//cipertext has the original plaintext size in the first 8 bytes, then IV
+	//in the next 16 bytes, then the actual ciphertext in the rest of the buffer.
+	//Read the original plaintext size, and the IV.
 	var origSize uint64
 	buf := bytes.NewReader(ciphertext)
 	if err = binary.Read(buf, binary.LittleEndian, &origSize); err != nil {
@@ -105,7 +105,7 @@ func decryptFile(key []byte, path string) {
 		log.Fatal(err)
 	}
 
-	// The remaining ciphertext has size=paddedSize.
+	//The remaining ciphertext has size=paddedSize.
 	paddedSize := len(ciphertext) - 8 - aes.BlockSize
 	if paddedSize%aes.BlockSize != 0 {
 		log.Fatal(fmt.Errorf("ERROR: want padded plaintext size to be aligned to block size"))
@@ -162,8 +162,10 @@ func watchDirs() {
 		for {
 			select {
 			case event := <-watch.Event:
-				//fmt.Println(event) //Shows event details as they occur
-				jobQueue = append(jobQueue, event) //Adds event to job queue
+				if event.Path != encryptDir && event.Path != decryptDir {
+					fmt.Println(event) //Shows event details as they occur
+					jobQueue = append(jobQueue, event) //Adds event to job queue
+				}
 			case err := <-watch.Error:
 				log.Panicln(err)
 			case <-watch.Closed:
@@ -194,7 +196,7 @@ func getJob(key []byte) {
 				if err := watch.AddRecursive(encryptDir); err != nil {
 					log.Panicln(err)
 				}
-			} else {
+			} else if strings.Contains(oldestEvent.Path, encryptDir) {
 				//Removes the 'data/' directory watch path while running events in 'inside/'
 				watch.RemoveRecursive(encryptDir)
 		
@@ -204,9 +206,11 @@ func getJob(key []byte) {
 				if err := watch.AddRecursive(decryptDir); err != nil {
 					log.Panicln(err)
 				}
+			} else {
+				fmt.Println("Well this was unexpected... Folder of origin appears to be in neither volume!")
 			}
 
-			removeOldEvent()
+			removeOldEvent() //Finally, removes the oldest slice element
 		} else {
 			time.Sleep(1 * time.Second)
 		}
@@ -220,25 +224,35 @@ func removeOldEvent() {
 
 //Gets called by getJob with relevant details
 func eventHandler(enc bool, key []byte, event watcher.Event) {
-	//'If' runs when event occurs in decryptDir.
-	if enc {
-		if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
-			writeFile(true, key, &event)
-		} else if event.Op.String() == "REMOVE" {
-			deleteFile(true, &event)
-		}
+	if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
+		writeFile(enc, key, &event)
+	} else if event.Op.String() == "REMOVE" {
+		deleteFile(enc, &event)
+	} else if event.Op.String() == "RENAME" || event.Op.String() == "MOVE" {
+		renameFile(enc, &event)
+	}
+}
 
-	//'Else' runs when event occurs in encryptDir
+//Runs when eventHandler reaches a RENAME event. Skips actions if file isn't found.
+func renameFile(enc bool, event *watcher.Event) {
+	var oldName string
+	var newName string
+	if enc {
+		oldName = switchFolder(event.OldPath, decryptDir, encryptDir)
+		newName = switchFolder(event.Path, decryptDir, encryptDir)
 	} else {
-		if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
-			writeFile(false, key, &event)
-		} else if event.Op.String() == "REMOVE" {
-			deleteFile(false, &event)
+		oldName = switchFolder(event.OldPath, encryptDir, decryptDir)
+		newName = switchFolder(event.Path, encryptDir, decryptDir)
+	}
+	if _, err := os.Stat(oldName); err == nil {
+		err := os.Rename(oldName, newName)
+		if err != nil {
+			log.Fatal(err)
 		}
 	}
 }
 
-//Runs when eventHandler reaches a REMOVE event
+//Runs when eventHandler reaches a REMOVE event. Skips actions if file isn't found.
 func deleteFile(enc bool, event *watcher.Event) {
 	var toDel string
 	if enc {
@@ -278,7 +292,6 @@ func writeFile(enc bool, key []byte, event *watcher.Event) {
 		if event.IsDir() == true && event.Path != decryptDir {
 			dirName := switchFolder(event.Path, decryptDir, encryptDir)
 			os.MkdirAll(dirName, event.Mode())
-		} else if event.IsDir() == true {
 		} else {
 			checkDir := strings.TrimSuffix(switchFolder(event.Path, decryptDir, encryptDir), event.Name())
 			os.MkdirAll(checkDir, event.Mode())
@@ -288,7 +301,6 @@ func writeFile(enc bool, key []byte, event *watcher.Event) {
 		if event.IsDir() == true && event.Path != encryptDir {
 			dirName := switchFolder(event.Path, encryptDir, decryptDir)
 			os.MkdirAll(dirName, event.Mode())
-		} else if event.IsDir() == true {
 		} else {
 			checkDir := strings.TrimSuffix(switchFolder(event.Path, encryptDir, decryptDir), event.Name())
 			os.MkdirAll(checkDir, event.Mode())
@@ -302,6 +314,6 @@ func main() {
 	password := getPass()
 	key := makeKey(password)
 
-	go getJob(key)
-	watchDirs()
+	go getJob(key) //Start job queue goroutine
+	watchDirs() //Start recursive directory watcher
 }
