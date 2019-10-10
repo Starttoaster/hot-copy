@@ -15,7 +15,7 @@ This repo takes a password from you, hashes it using SHA256 to make a 32 byte ha
  ## Quick Start
 
  - Build the image: `docker build -t sync-assist .`
- - Run the image: `docker container run -d --restart unless-stopped -v ~/go/src/sync-assist/data:/data -v ~/go/src/sync-assist/inside:/inside -e SA_PASSWORD="MyNewPassword" --name sync-assist sync-assist`
+ - Run the image: `docker container run --restart unless-stopped -v ~/path/to/data:/data -v ~/path/to/inside:/inside -e SA_PASSWORD="MyNewPassword" --name sync-assist sync-assist`
 
 ## TODO
 
@@ -24,3 +24,5 @@ This repo is still in early development. Feel free to contribute or send a pull 
  - Further testing dealing with large numbers of files and directories
  - Write Go unit tests
  - Set up CI
+
+ To test the image: `docker container run -v ~/go/src/sync-assist/data:/data -v ~/go/src/sync-assist/inside:/inside -e SA_PASSWORD="MyNewPassword" -e PUID="1000" -e PGID="1000" --rm --name sync-assist sync-assist`
