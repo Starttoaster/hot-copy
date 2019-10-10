@@ -25,8 +25,8 @@ Change the `SA_PASSWORD` environment variable to your desired password. Change t
 
 This repo is still in early development. Feel free to contribute or send a pull request if you have an idea. For starters:
 
- - Further testing dealing with large numbers of files and directories
- - Write Go unit tests
+ - Further debugging, dealing with large numbers of files and directories, or large files
+ - Further Go unit testing
  - Set up CI
 
  To test the image: `docker container run -v ~/go/src/hot-copy/data:/data -v ~/go/src/hot-copy/inside:/inside -e SA_PASSWORD="MyNewPassword" -e PUID="1000" -e PGID="1000" --rm --name hot-copy hot-copy`

@@ -1,4 +1,4 @@
-module sync-assist
+module hotcopy
 
 go 1.13
 
