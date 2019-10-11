@@ -22,7 +22,7 @@ import (
 var watch *watcher.Watcher = watcher.New()
 var jobQueue []watcher.Event
 var decryptDir string = "/data"
-var encryptDir string = "/inside"
+var encryptDir string = "/enc-data"
 var puid, pgid int
 
 func encryptFile(key []byte, path string, outFilename string, fileMode os.FileMode) {
@@ -211,20 +211,20 @@ func getEvent(key []byte) {
 
 			//'If' runs when event occurs in decryptDir. 'Else' runs when event occurs in encryptDir
 			if strings.Contains(oldestEvent.Path, decryptDir) {
-				//Removes the 'inside/' directory watch path while running events in 'data/'
+				//Removes the 'data-enc/' directory watch path while running events in 'data/'
 				watch.RemoveRecursive(encryptDir)
 
-				eventHandler(true, key, oldestEvent)
+				eventHandler(false, key, oldestEvent)
 
-				//Re-adds the 'inside/' directory watch path once done
+				//Re-adds the 'data-enc/' directory watch path once done
 				if err := watch.AddRecursive(encryptDir); err != nil {
 					log.Panicln(err)
 				}
 			} else if strings.Contains(oldestEvent.Path, encryptDir) {
-				//Removes the 'data/' directory watch path while running events in 'inside/'
-				watch.RemoveRecursive(encryptDir)
+				//Removes the 'data/' directory watch path while running events in 'data-enc/'
+				watch.RemoveRecursive(decryptDir)
 
-				eventHandler(false, key, oldestEvent)
+				eventHandler(true, key, oldestEvent)
 
 				//Re-adds the 'data/' directory watch path once done
 				if err := watch.AddRecursive(decryptDir); err != nil {
@@ -264,7 +264,7 @@ func eventHandler(enc bool, key []byte, event watcher.Event) {
 func renameFile(enc bool, event *watcher.Event) {
 	var oldName string
 	var newName string
-	if enc {
+	if !enc {
 		oldName = switchFolder(event.OldPath, decryptDir, encryptDir)
 		newName = switchFolder(event.Path, decryptDir, encryptDir)
 	} else {
@@ -282,7 +282,7 @@ func renameFile(enc bool, event *watcher.Event) {
 //Runs when eventHandler reaches a REMOVE event. Skips actions if file isn't found.
 func deleteFile(enc bool, path string, isDir bool) {
 	var toDel string
-	if enc {
+	if !enc {
 		toDel = switchFolder(path, decryptDir, encryptDir)
 	} else {
 		toDel = switchFolder(path, encryptDir, decryptDir)
@@ -315,7 +315,7 @@ func deleteFile(enc bool, path string, isDir bool) {
 
 //Runs when eventHandler reaches a Create or Write event
 func writeFile(enc bool, key []byte, event *watcher.Event) {
-	if enc {
+	if !enc {
 		checkDir := strings.TrimSuffix(switchFolder(event.Path, decryptDir, encryptDir), event.Name())
 		outFilename := switchFolder(event.Path, decryptDir, encryptDir)
 		os.MkdirAll(checkDir, event.Mode())

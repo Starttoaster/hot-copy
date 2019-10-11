@@ -14,9 +14,9 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-w -s" -o hot-copy
 FROM alpine
 LABEL maintainer="Brandon Butler bmbawb@gmail.com"
 
-RUN mkdir -p /data && mkdir -p /inside
+RUN mkdir -p /data && mkdir -p /enc-data
 
-VOLUME /inside
+VOLUME /enc-data
 VOLUME /data
 
 COPY --from=builder /go/src/hot-copy/hot-copy /hot-copy
