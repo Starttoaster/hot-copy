@@ -243,33 +243,40 @@ func getEvent(key []byte) {
 
 //Gets called by getJob with relevant details
 func eventHandler(enc bool, key []byte, event watcher.Event) {
+	eventPath := event.Path
+
 	if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
-		if event.IsDir() && event.Path != decryptDir {
-			dirName := switchFolder(event.Path, decryptDir, encryptDir)
-			os.MkdirAll(dirName, event.Mode())
-		} else if event.IsDir() && event.Path != encryptDir {
-			dirName := switchFolder(event.Path, encryptDir, decryptDir)
-			os.MkdirAll(dirName, event.Mode())
+		eventName := event.Name()
+		eventIsDir := event.IsDir()
+		eventMode := event.Mode()
+		if eventIsDir && event.Path != decryptDir {
+			dirName := switchFolder(eventPath, decryptDir, encryptDir)
+			os.MkdirAll(dirName, eventMode)
+		} else if eventIsDir && eventPath != encryptDir {
+			dirName := switchFolder(eventPath, encryptDir, decryptDir)
+			os.MkdirAll(dirName, eventMode)
 		} else {
-			writeFile(enc, key, &event)
+			writeFile(enc, key, eventPath, eventName, eventMode)
 		}
 	} else if event.Op.String() == "REMOVE" {
-		deleteFile(enc, event.Path, event.IsDir())
+		eventIsDir := event.IsDir()
+		deleteFile(enc, eventPath, eventIsDir)
 	} else if event.Op.String() == "RENAME" || event.Op.String() == "MOVE" {
-		renameFile(enc, &event)
+		eventOldPath := event.OldPath
+		renameFile(enc, eventPath, eventOldPath)
 	}
 }
 
 //Runs when eventHandler reaches a RENAME event. Skips actions if file isn't found.
-func renameFile(enc bool, event *watcher.Event) {
+func renameFile(enc bool, eventPath string, eventOldPath string) {
 	var oldName string
 	var newName string
 	if !enc {
-		oldName = switchFolder(event.OldPath, decryptDir, encryptDir)
-		newName = switchFolder(event.Path, decryptDir, encryptDir)
+		oldName = switchFolder(eventOldPath, decryptDir, encryptDir)
+		newName = switchFolder(eventPath, decryptDir, encryptDir)
 	} else {
-		oldName = switchFolder(event.OldPath, encryptDir, decryptDir)
-		newName = switchFolder(event.Path, encryptDir, decryptDir)
+		oldName = switchFolder(eventOldPath, encryptDir, decryptDir)
+		newName = switchFolder(eventPath, encryptDir, decryptDir)
 	}
 	if _, err := os.Stat(oldName); err == nil {
 		err := os.Rename(oldName, newName)
@@ -293,17 +300,18 @@ func deleteFile(enc bool, path string, isDir bool) {
 			if err != nil {
 				log.Panicln(err)
 			}
-			defer d.Close()
-			names, err := d.Readdirnames(-1)
+			names, err := d.Readdirnames(0)
 			if err != nil {
 				log.Panicln(err)
 			}
+			d.Close()
 			for _, name := range names {
 				err = os.RemoveAll(filepath.Join(toDel, name))
 				if err != nil {
 					log.Panicln(err)
 				}
 			}
+			err = os.Remove(toDel)
 		} else {
 			err := os.Remove(toDel)
 			if err != nil {
@@ -314,17 +322,17 @@ func deleteFile(enc bool, path string, isDir bool) {
 }
 
 //Runs when eventHandler reaches a Create or Write event
-func writeFile(enc bool, key []byte, event *watcher.Event) {
+func writeFile(enc bool, key []byte, eventPath string, eventName string, eventMode os.FileMode) {
 	if !enc {
-		checkDir := strings.TrimSuffix(switchFolder(event.Path, decryptDir, encryptDir), event.Name())
-		outFilename := switchFolder(event.Path, decryptDir, encryptDir)
-		os.MkdirAll(checkDir, event.Mode())
-		encryptFile(key, event.Path, outFilename, event.Mode())
+		checkDir := strings.TrimSuffix(switchFolder(eventPath, decryptDir, encryptDir), eventName)
+		outFilename := switchFolder(eventPath, decryptDir, encryptDir)
+		os.MkdirAll(checkDir, eventMode)
+		encryptFile(key, eventPath, outFilename, eventMode)
 	} else {
-		checkDir := strings.TrimSuffix(switchFolder(event.Path, encryptDir, decryptDir), event.Name())
-		outFilename := switchFolder(event.Path, encryptDir, decryptDir)
-		os.MkdirAll(checkDir, event.Mode())
-		decryptFile(key, event.Path, outFilename, event.Mode())
+		checkDir := strings.TrimSuffix(switchFolder(eventPath, encryptDir, decryptDir), eventName)
+		outFilename := switchFolder(eventPath, encryptDir, decryptDir)
+		os.MkdirAll(checkDir, eventMode)
+		decryptFile(key, eventPath, outFilename, eventMode)
 	}
 }
 

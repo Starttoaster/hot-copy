@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-var encryptedFile string = "test.enc"
-var decryptedFile string = "test.txt"
+var decryptedFile string = "data/test.txt"
+var encryptedFile string = "enc-data/test.enc"
 var testingText []byte = []byte("testing")
 
 func TestEncryptFile(t *testing.T) {
