@@ -62,10 +62,34 @@ func TestDecryptFile(t *testing.T) {
 	os.Remove(decryptedFile)
 }
 
+func TestGetEnv(t *testing.T) {
+	//Sets testing variables
+	os.Setenv("SA_PASSWORD", "testkey")
+	os.Setenv("PUID", "1000")
+	os.Setenv("PGID", "1000")
+
+	//Tests using environment variables to make a key
+	key := getEnv()
+	if key != "testkey" {
+		t.Fail()
+	}
+	//Tests the puid/pgid variable sett
+	if puid != 1000 || pgid != 1000 {
+		t.Fail()
+	}
+}
+
 func TestMakeKey(t *testing.T) {
 	key := makeKey("testkey")
 	//Ensures key created is always 32 bytes in length
 	if len(key) != 32 {
+		t.Fail()
+	}
+}
+
+func TestSwitchFolder(t *testing.T) {
+	newPath := switchFolder("/oldpath/somedirectory/file", "/oldpath", "/newpath")
+	if newPath != "/newpath/somedirectory/file" {
 		t.Fail()
 	}
 }
