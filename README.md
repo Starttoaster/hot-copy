@@ -33,7 +33,7 @@ To give a more detailed example, say that you have three Syncthing servers. Serv
  ### Environment Variables
 
 | Variable | Function |
-| ---- | ---- | --- |
+| ---- | ---- |
 | -e SA_PASSWORD | This is the password you will use to encrypt and decrypt files with |
 | -e PUID | Your host username's ID number. Find with `id <username>` |
 | -e PGID | Your host username's group number. Find with `id <username>` | 
