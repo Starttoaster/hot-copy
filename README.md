@@ -4,9 +4,7 @@
 
 Simply put, this is a docker image for bidirectional input and output between encrypted and unencrypted data. Using the SHA256 hashing algorithm for a user configured password, and the AES-256 encryption standard, this manages a directory of unencrypted data, and encrypts-decrypts it on the fly (preserving the original directory tree.)
 
-The `/data` volume is meant to face the user with unencrypted data. The `/enc-data` volume contains the encrypted copies of your data.
-
-#### What this is meant to solve
+### What this is meant to solve
 
 This is meant to run alongside something such as a Syncthing instance. Syncthing is an impressive self-hosted, distributed, file syncing service. For security reasons, it encrypts your documents in transit, however, it lacks the functionality to keep data encrypted at rest. What this means is, when your data exits or enters a node it is encrypted, and then immediately unencrypted for the destination node.
 
@@ -30,13 +28,16 @@ To give a more detailed example, say that you have three Syncthing servers. Serv
     hot-copy
  ```
 
- ### Environment Variables
+ ### Environment Variables and Volumes
 
-| Variable | Function |
+| Variable/Volume | Function |
 | ---- | ---- |
 | -e SA_PASSWORD | This is the password you will use to encrypt and decrypt files with |
 | -e PUID | Your host username's ID number. Find with `id <username>` |
 | -e PGID | Your host username's group number. Find with `id <username>` | 
+| -v /data | Your directory with unencrypted data |
+| -v /enc-data | The encrypted copies of all of your data |
+
 
 ## TODO
 
@@ -47,7 +48,6 @@ This repo is still in early development. Feel free to contribute or send a pull 
  - Set up CI
 
 #### For testing
-
 ```
 docker build -t hot-copy-test -f 'test/Dockerfile' .
 docker container run --rm hot-copy-test
