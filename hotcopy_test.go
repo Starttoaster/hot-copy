@@ -162,3 +162,27 @@ func TestDeleteFile(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestWriteFile(t *testing.T) {
+	key := makeKey("testkey")
+	decryptedFileName := "test.txt"
+	encryptedFileName := "test.txt"
+
+	//Creating decrypted files that will be written into the encrypted directory
+	testFile, err := os.Create(decryptedFile)
+	if err != nil {
+		t.Fail()
+	}
+	defer testFile.Close()
+	//Testing writeFile first run
+	writeFile(false, key, decryptedFile, decryptedFileName, 0644)
+	if _, err := os.Stat(encryptedFile); err != nil {
+		t.Fail()
+	}
+	os.Remove(decryptedFile) //Getting rid of decryptedFile just to create it again
+	//Testing writeFile second run
+	writeFile(true, key, encryptedFile, encryptedFileName, 0644)
+	if _, err := os.Stat(decryptedFile); err != nil {
+		t.Fail()
+	}
+}
