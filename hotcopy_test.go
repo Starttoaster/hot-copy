@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-var decryptedFile string = "data/test.txt"
-var encryptedFile string = "enc-data/test.enc"
+var decryptedFile string = "/data/test.txt"
+var encryptedFile string = "/enc-data/test.txt"
 var testingText []byte = []byte("testing")
 
 func TestEncryptFile(t *testing.T) {
@@ -90,6 +90,75 @@ func TestMakeKey(t *testing.T) {
 func TestSwitchFolder(t *testing.T) {
 	newPath := switchFolder("/oldpath/somedirectory/file", "/oldpath", "/newpath")
 	if newPath != "/newpath/somedirectory/file" {
+		t.Fail()
+	}
+}
+
+func TestRenameFile(t *testing.T) {
+	//New file names
+	newDecryptedFile := "/data/cool.txt"
+	newEncryptedFile := "/enc-data/cool.txt"
+
+	//Creating files that will be changed
+	testFile, err := os.Create(decryptedFile)
+	if err != nil {
+		t.Fail()
+	}
+	testEncFile, err := os.Create(encryptedFile)
+	if err != nil {
+		t.Fail()
+	}
+	defer testFile.Close()
+	defer testEncFile.Close()
+
+	//Renames file in encrypted directory then tests to make sure it changed
+	renameFile(false, newDecryptedFile, decryptedFile)
+	if _, err := os.Stat(newEncryptedFile); err != nil {
+		t.Fail()
+	}
+
+	//Renames file in decrypted directory then tests to make sure it changed
+	renameFile(true, newEncryptedFile, encryptedFile)
+	if _, err := os.Stat(newDecryptedFile); err != nil {
+		t.Fail()
+	}
+}
+
+func TestDeleteFile(t *testing.T) {
+	decryptedFolder := "/data/folder"
+	encryptedFolder := "/enc-data/folder"
+
+	//Creating files that will be changed
+	testFile, err := os.Create(decryptedFile)
+	if err != nil {
+		t.Fail()
+	}
+	testEncFile, err := os.Create(encryptedFile)
+	if err != nil {
+		t.Fail()
+	}
+	os.MkdirAll(decryptedFolder, 0644)
+	os.MkdirAll(encryptedFolder, 0644)
+	defer testFile.Close()
+	defer testEncFile.Close()
+
+	//Deletes the files in encrypted directory, and then tests to make sure they were removed
+	deleteFile(false, decryptedFile, false)
+	deleteFile(false, decryptedFolder, true)
+	if _, err := os.Stat(encryptedFile); err == nil {
+		t.Fail()
+	}
+	if _, err := os.Stat(encryptedFolder); err == nil {
+		t.Fail()
+	}
+
+	//Deletes the files in decrypted directory, and then tests to make sure they were removed
+	deleteFile(true, encryptedFile, false)
+	deleteFile(true, encryptedFolder, true)
+	if _, err := os.Stat(decryptedFile); err == nil {
+		t.Fail()
+	}
+	if _, err := os.Stat(decryptedFolder); err == nil {
 		t.Fail()
 	}
 }

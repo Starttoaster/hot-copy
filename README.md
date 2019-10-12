@@ -16,10 +16,27 @@ To give a more detailed example, say that you have three Syncthing servers. Serv
 
 ## Quick Start
 
-Change the `SA_PASSWORD` environment variable to your desired password. Change the PUID/PGID environment variables to your user's values for best results. Find with `id <username>`
-
  - Build the image: `docker build -t hot-copy -f 'release/Dockerfile' .`
- - Run the image: `docker container run --restart unless-stopped -v ~/path/to/data:/data -v ~/path/to/enc-data:/enc-data -e SA_PASSWORD="MyNewPassword" -e PUID="1000" -e PGID="1000" --name hot-copy hot-copy`
+ - Run the image: 
+ ```
+ docker container run \
+    --restart unless-stopped \
+    -v ~/path/to/data:/data \
+    -v ~/path/to/enc-data:/enc-data \
+    -e SA_PASSWORD="MyNewPassword" \
+    -e PUID="1000" \
+    -e PGID="1000" \
+    --name hot-copy \
+    hot-copy
+ ```
+
+ ### Environment Variables
+
+| Variable | Function |
+| ---- | ---- | --- |
+| -e SA_PASSWORD | This is the password you will use to encrypt and decrypt files with |
+| -e PUID | Your host username's ID number. Find with `id <username>` |
+| -e PGID | Your host username's group number. Find with `id <username>` | 
 
 ## TODO
 
@@ -29,6 +46,9 @@ This repo is still in early development. Feel free to contribute or send a pull 
  - Further Go unit testing
  - Set up CI
 
- For testing purposes:
- - `docker build -t hot-copy-test -f 'test/Dockerfile' .`
- - `docker container run --rm hot-copy-test`
+#### For testing
+
+```
+docker build -t hot-copy-test -f 'test/Dockerfile' .
+docker container run --rm hot-copy-test
+```
