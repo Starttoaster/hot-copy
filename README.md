@@ -1,5 +1,8 @@
 # HotCopy
 
+[![pipeline status](https://gitlab.com/brandonbutler/hot-copy/badges/master/pipeline.svg)](https://gitlab.com/brandonbutler/hot-copy/commits/master)
+[![coverage report](https://gitlab.com/brandonbutler/hot-copy/badges/master/coverage.svg)](https://gitlab.com/brandonbutler/hot-copy/commits/master)
+
 ## What this is
 
 Simply put, this is a docker image for bidirectional input and output between encrypted and unencrypted data. Using the SHA256 hashing algorithm for a user configured password, and the AES-256 encryption standard, this manages a directory of unencrypted data, and encrypts-decrypts it on the fly (preserving the original directory tree.)
