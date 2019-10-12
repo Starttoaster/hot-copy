@@ -203,12 +203,14 @@ func watchDirs() {
 }
 
 //Grabs a job from the queue slice, splits it between which directory it comes from, actions it, and then deletes it
-func getEvent(key []byte) {
+func getEvent(key []byte, testing bool) {
 	for {
 		if len(jobQueue) > 0 {
 			oldestEvent := jobQueue[0]
-			fmt.Println(oldestEvent) //Shows event details as they come up the queue
-
+			if !testing {
+				fmt.Println(oldestEvent) //Shows event details as they come up the queue
+			}
+			
 			//'If' runs when event occurs in decryptDir. 'Else' runs when event occurs in encryptDir
 			if strings.Contains(oldestEvent.Path, decryptDir) {
 				//Removes the 'data-enc/' directory watch path while running events in 'data/'
@@ -230,11 +232,11 @@ func getEvent(key []byte) {
 				if err := watch.AddRecursive(decryptDir); err != nil {
 					log.Panicln(err)
 				}
-			} else {
-				fmt.Println("Well this was unexpected... Folder of origin appears to be in neither volume!")
 			}
 
 			jobQueue = append(jobQueue[:0], jobQueue[1:]...) //Removes the first (oldest) element of the slice
+		} else if testing && len(jobQueue) == 0 {
+			break
 		} else {
 			time.Sleep(1 * time.Second)
 		}
@@ -340,6 +342,6 @@ func main() {
 	//Set up user defined key, and uid/gid variables
 	key := makeKey(getEnv())
 
-	go getEvent(key) //Start event queue goroutine
+	go getEvent(key, false) //Start event queue goroutine
 	watchDirs()      //Start recursive directory watcher
 }

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"github.com/radovskyb/watcher"
 )
 
 var decryptedFile string = "/data/test.txt"
@@ -183,6 +184,36 @@ func TestWriteFile(t *testing.T) {
 	//Testing writeFile second run
 	writeFile(true, key, encryptedFile, encryptedFileName, 0644)
 	if _, err := os.Stat(decryptedFile); err != nil {
+		t.Fail()
+	}
+}
+
+func TestWatchDirs(t *testing.T) {
+	//Start recursive directory watcher and trigger all event types
+	go watchDirs()
+	watch.TriggerEvent(watcher.Create, nil)
+	watch.TriggerEvent(watcher.Write, nil)
+	watch.TriggerEvent(watcher.Remove, nil)
+	watch.TriggerEvent(watcher.Rename, nil)
+	watch.TriggerEvent(watcher.Chmod, nil)
+	watch.TriggerEvent(watcher.Move, nil)
+	watch.Close()
+	//Ensure all event types were recognized and added to the queue
+	if len(jobQueue) != 6 {
+		t.Fail()
+	}
+}
+
+func TestGetEvent(t *testing.T) {
+	key := makeKey("testkey")
+
+	//Makes sure jobQueue has events in it
+	if len(jobQueue) == 0 {
+		t.Fail()
+	}
+	//Flush out all events
+	getEvent(key, true)
+	if len(jobQueue) != 0 {
 		t.Fail()
 	}
 }
