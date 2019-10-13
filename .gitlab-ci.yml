@@ -7,9 +7,9 @@ stages:
   - build
 
 variables:
-  REGISTRY: "registry.gitlab.com/brandonbutler/hot-copy"
-  CONTAINER_IMAGE: ${REGISTRY}/${CI_PROJECT_NAME}:latest
-  TEST_CONTAINER_IMAGE: ${REGISTRY}/${CI_PROJECT_NAME}:test
+  DOCKER_HUB_USER: starttoaster
+  CONTAINER_IMAGE: ${DOCKER_HUB_USER}/${CI_PROJECT_NAME}:latest
+  TEST_CONTAINER_IMAGE: ${DOCKER_HUB_USER}/${CI_PROJECT_NAME}:test
 
 test:
   stage: test
@@ -20,7 +20,7 @@ test:
 build:
   stage: build
   before_script:
-    - docker login $REGISTRY -u brandonbutler -p $CI_PASS
+    - docker login -u ${DOCKER_HUB_USER} -p ${CI_PASS}
   script:
     - docker build -t ${CONTAINER_IMAGE} -f 'release/Dockerfile' .
     - docker push ${CONTAINER_IMAGE}
