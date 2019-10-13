@@ -1,7 +1,7 @@
 FROM golang:alpine
 
 ENV APP_PATH=/go/src/hot-copy
-ENV SA_PASSWORD="testing"
+ENV HC_PASSWORD="testing"
 ENV PUID="1000"
 ENV PGID="1000"
 

@@ -65,7 +65,7 @@ func TestDecryptFile(t *testing.T) {
 
 func TestGetEnv(t *testing.T) {
 	//Sets testing variables
-	os.Setenv("SA_PASSWORD", "testkey")
+	os.Setenv("HC_PASSWORD", "testkey")
 	os.Setenv("PUID", "1000")
 	os.Setenv("PGID", "1000")
 
@@ -217,3 +217,5 @@ func TestGetEvent(t *testing.T) {
 		t.Fail()
 	}
 }
+
+

@@ -24,7 +24,7 @@ The problem this repo is meant to solve is the ability to treat some nodes as un
     --restart unless-stopped \
     -v ~/path/to/data:/data \
     -v ~/path/to/enc-data:/enc-data \
-    -e SA_PASSWORD="MyNewPassword" \
+    -e HC_PASSWORD="MyNewPassword" \
     -e PUID="1000" \
     -e PGID="1000" \
     --name hot-copy \
@@ -35,9 +35,9 @@ The problem this repo is meant to solve is the ability to treat some nodes as un
 
 | Variable/Volume | Function |
 | ---- | ---- |
-| -e SA_PASSWORD | This is the password you will use to encrypt and decrypt files with |
-| -e PUID | Your host username's ID number. Find with `id <username>` |
-| -e PGID | Your host username's group number. Find with `id <username>` | 
+| -e HC_PASSWORD | This is the password you will use to encrypt and decrypt files with |
+| -e PUID | Your host username's ID number. Find with `id -u <username>` |
+| -e PGID | Your host username's group number. Find with `id -g <username>` | 
 | -v /data | Your directory with unencrypted data |
 | -v /enc-data | The encrypted copies of all of your data |
 

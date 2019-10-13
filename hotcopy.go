@@ -136,25 +136,22 @@ func decryptFile(key []byte, path string, outFilename string, fileMode os.FileMo
 
 //Grabs environment variables for password, uid, and gid
 func getEnv() string {
-	password := os.Getenv("SA_PASSWORD")
+	password := os.Getenv("HC_PASSWORD")
 	if password == "" {
 		fmt.Println("Password environment variable not set")
 		os.Exit(1)
 	}
 	uid, gid := os.Getenv("PUID"), os.Getenv("PGID")
-	if uid == "" || gid == "" {
-		puid, pgid = 0, 0
-	} else {
-		var err error
-		puid, err = strconv.Atoi(uid)
-		if err != nil {
-			log.Panicln(err)
-		}
-		pgid, err = strconv.Atoi(gid)
-		if err != nil {
-			log.Panicln(err)
-		}
+	var err error
+	puid, err = strconv.Atoi(uid)
+	if err != nil {
+		log.Panicln(err)
 	}
+	pgid, err = strconv.Atoi(gid)
+	if err != nil {
+		log.Panicln(err)
+	}
+
 	return password
 }
 
@@ -216,7 +213,7 @@ func getEvent(key []byte, testing bool) {
 				//Removes the 'data-enc/' directory watch path while running events in 'data/'
 				watch.RemoveRecursive(encryptDir)
 
-				eventHandler(false, key, oldestEvent)
+					eventHandler(false, key, oldestEvent, false)
 
 				//Re-adds the 'data-enc/' directory watch path once done
 				if err := watch.AddRecursive(encryptDir); err != nil {
@@ -226,46 +223,55 @@ func getEvent(key []byte, testing bool) {
 				//Removes the 'data/' directory watch path while running events in 'data-enc/'
 				watch.RemoveRecursive(decryptDir)
 
-				eventHandler(true, key, oldestEvent)
+				eventHandler(true, key, oldestEvent, false)
 
 				//Re-adds the 'data/' directory watch path once done
 				if err := watch.AddRecursive(decryptDir); err != nil {
 					log.Panicln(err)
 				}
+			} else if testing {
+				eventHandler(true, key, oldestEvent, testing)
+				eventHandler(false, key, oldestEvent, testing)
 			}
 
 			jobQueue = append(jobQueue[:0], jobQueue[1:]...) //Removes the first (oldest) element of the slice
+		} else if !testing && len(jobQueue) == 0 {
+			time.Sleep(1 * time.Second)
 		} else if testing && len(jobQueue) == 0 {
 			break
-		} else {
-			time.Sleep(1 * time.Second)
 		}
 	}
 }
 
 //Gets called by getJob with relevant details
-func eventHandler(enc bool, key []byte, event watcher.Event) {
+func eventHandler(enc bool, key []byte, event watcher.Event, testing bool) {
 	eventPath := event.Path
 
 	if event.Op.String() == "WRITE" || event.Op.String() == "CREATE" {
 		eventName := event.Name()
 		eventIsDir := event.IsDir()
 		eventMode := event.Mode()
-		if eventIsDir && event.Path != decryptDir {
-			dirName := switchFolder(eventPath, decryptDir, encryptDir)
-			os.MkdirAll(dirName, eventMode)
-		} else if eventIsDir && eventPath != encryptDir {
-			dirName := switchFolder(eventPath, encryptDir, decryptDir)
-			os.MkdirAll(dirName, eventMode)
-		} else {
-			writeFile(enc, key, eventPath, eventName, eventMode)
+		if !testing {
+			if eventIsDir && event.Path != decryptDir {
+				dirName := switchFolder(eventPath, decryptDir, encryptDir)
+				os.MkdirAll(dirName, eventMode)
+			} else if eventIsDir && eventPath != encryptDir {
+				dirName := switchFolder(eventPath, encryptDir, decryptDir)
+				os.MkdirAll(dirName, eventMode)
+			} else {
+				writeFile(enc, key, eventPath, eventName, eventMode)
+			}
 		}
 	} else if event.Op.String() == "REMOVE" {
-		eventIsDir := event.IsDir()
-		deleteFile(enc, eventPath, eventIsDir)
+		if !testing {
+			eventIsDir := event.IsDir()
+			deleteFile(enc, eventPath, eventIsDir)
+		}
 	} else if event.Op.String() == "RENAME" || event.Op.String() == "MOVE" {
-		eventOldPath := event.OldPath
-		renameFile(enc, eventPath, eventOldPath)
+		if !testing {
+			eventOldPath := event.OldPath
+			renameFile(enc, eventPath, eventOldPath)
+		}
 	}
 }
 
